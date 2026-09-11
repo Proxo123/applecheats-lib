@@ -24,28 +24,22 @@ local Services = {
 }
 
 local function GetGuiParent()
-	if gethui then
-		local gui = Instance.new("ScreenGui")
-		gui.Name = "AppleCheats"
-		gui.ResetOnSpawn = false
-		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		gui.Parent = gethui()
-		return gui
-	end
-	if syn and syn.protect_gui then
-		local gui = Instance.new("ScreenGui")
-		gui.Name = "AppleCheats"
-		gui.ResetOnSpawn = false
-		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		syn.protect_gui(gui)
-		gui.Parent = Services.CoreGui
-		return gui
+	local parent = gethui and gethui() or Services.CoreGui
+	for _, child in ipairs(parent:GetChildren()) do
+		if child:IsA("ScreenGui") and child.Name == "AppleCheats" then
+			child:Destroy()
+		end
 	end
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "AppleCheats"
 	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 999
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	gui.Parent = Services.CoreGui
+	if syn and syn.protect_gui then
+		syn.protect_gui(gui)
+	end
+	gui.Parent = parent
 	return gui
 end
 
@@ -103,20 +97,29 @@ local function MakeText(props)
 	})
 end
 
-local function ConnectInput(gui, callback)
-	local button = gui:IsA("TextButton") or gui:IsA("ImageButton")
-	if not button then
-		gui = New("TextButton", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			Text = "",
-			AutoButtonColor = false,
-			ZIndex = (gui.ZIndex or 1) + 1,
-			Parent = gui,
-		})
+local function BindClick(gui, callback)
+	local fired = false
+	local function Fire()
+		if fired then
+			return
+		end
+		fired = true
+		task.defer(function()
+			fired = false
+		end)
+		callback()
 	end
-	gui.MouseButton1Click:Connect(callback)
-	return gui
+	if gui.MouseButton1Click then
+		gui.MouseButton1Click:Connect(Fire)
+	end
+	if gui.Activated then
+		gui.Activated:Connect(Fire)
+	end
+	gui.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			Fire()
+		end
+	end)
 end
 
 local Library = {
@@ -155,7 +158,7 @@ function AppleCheats:CreateWindow(options)
 		BorderColor3 = Themes.Border,
 		Position = position,
 		Size = UDim2.fromOffset(size.X, size.Y),
-		Active = true,
+		Active = false,
 		Parent = gui,
 	})
 
@@ -164,6 +167,7 @@ function AppleCheats:CreateWindow(options)
 		BackgroundColor3 = Themes.TitleBg,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, 22),
+		Active = true,
 		Parent = main,
 	})
 
@@ -344,6 +348,8 @@ function AppleCheats:CreateWindow(options)
 				ScrollBarThickness = 4,
 				ScrollBarImageColor3 = Themes.Border,
 				AutomaticCanvasSize = Enum.AutomaticSize.Y,
+				Active = false,
+				ScrollingEnabled = true,
 				Parent = colFrame,
 			})
 
@@ -380,9 +386,14 @@ function AppleCheats:CreateWindow(options)
 				default = default == true
 				callback = callback or function() end
 
-				local row = New("Frame", {
+				local row = New("TextButton", {
 					Name = "Checkbox",
-					BackgroundTransparency = 1,
+					BackgroundTransparency = 0.999,
+					BorderSizePixel = 0,
+					Text = "",
+					AutoButtonColor = false,
+					Selectable = true,
+					Active = true,
 					Size = UDim2.new(1, 0, 0, 18),
 					LayoutOrder = #column.Elements + 1,
 					Parent = list,
@@ -395,6 +406,8 @@ function AppleCheats:CreateWindow(options)
 					BorderColor3 = Themes.Border,
 					Size = UDim2.fromOffset(11, 11),
 					Position = UDim2.fromOffset(0, 3),
+					ZIndex = 2,
+					Active = false,
 					Parent = row,
 				})
 
@@ -405,6 +418,8 @@ function AppleCheats:CreateWindow(options)
 					Size = UDim2.fromOffset(7, 7),
 					Position = UDim2.fromOffset(2, 2),
 					Visible = default,
+					ZIndex = 3,
+					Active = false,
 					Parent = box,
 				})
 
@@ -415,6 +430,8 @@ function AppleCheats:CreateWindow(options)
 				})
 				text.Position = UDim2.fromOffset(16, 0)
 				text.Size = UDim2.new(1, -16, 1, 0)
+				text.ZIndex = 2
+				text.Active = false
 
 				local element = {
 					Type = "Checkbox",
@@ -433,7 +450,7 @@ function AppleCheats:CreateWindow(options)
 					callback(element.Value)
 				end
 
-				ConnectInput(row, Toggle)
+				BindClick(row, Toggle)
 
 				table.insert(column.Elements, element)
 				return element
