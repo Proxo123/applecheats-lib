@@ -98,15 +98,7 @@ local function MakeText(props)
 end
 
 local function BindClick(gui, callback)
-	local fired = false
 	local function Fire()
-		if fired then
-			return
-		end
-		fired = true
-		task.defer(function()
-			fired = false
-		end)
 		callback()
 	end
 	if gui.MouseButton1Click then
@@ -115,11 +107,6 @@ local function BindClick(gui, callback)
 	if gui.Activated then
 		gui.Activated:Connect(Fire)
 	end
-	gui.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			Fire()
-		end
-	end)
 end
 
 local Library = {
