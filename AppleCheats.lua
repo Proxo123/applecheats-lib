@@ -1,5 +1,5 @@
 local AppleCheats = {}
-AppleCheats.Version = "1.1.2"
+AppleCheats.Version = "1.1.3"
 
 local Themes = {
 	TitleBg = Color3.fromRGB(0, 0, 0),
@@ -118,12 +118,19 @@ end
 local ClickRegistry = {}
 local InputConnected = false
 
+local function GetInputPoint(input)
+	if input and input.UserInputType == Enum.UserInputType.Touch then
+		return Vector2.new(input.Position.X, input.Position.Y)
+	end
+	local mouse = Services.UserInputService:GetMouseLocation()
+	return Vector2.new(mouse.X, mouse.Y)
+end
+
 local function PointInGui(gui, point)
 	if not gui or not gui.Parent then
 		return false
 	end
-	local visible = gui.Visible
-	if not visible then
+	if not gui.Visible then
 		return false
 	end
 	local pos = gui.AbsolutePosition
@@ -139,14 +146,11 @@ local function EnsureInput()
 		return
 	end
 	InputConnected = true
-	Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed then
-			return
-		end
+	Services.UserInputService.InputBegan:Connect(function(input)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
 			return
 		end
-		local point = input.Position
+		local point = GetInputPoint(input)
 		for i = #ClickRegistry, 1, -1 do
 			local entry = ClickRegistry[i]
 			if entry.gui and entry.gui.Parent then
@@ -162,11 +166,28 @@ local function EnsureInput()
 end
 
 local function BindClick(gui, callback)
+	local busy = false
+	local function Fire()
+		if busy then
+			return
+		end
+		busy = true
+		task.defer(function()
+			busy = false
+		end)
+		callback()
+	end
 	EnsureInput()
 	table.insert(ClickRegistry, {
 		gui = gui,
-		callback = callback,
+		callback = Fire,
 	})
+	if gui.MouseButton1Click then
+		gui.MouseButton1Click:Connect(Fire)
+	end
+	if gui.Activated then
+		gui.Activated:Connect(Fire)
+	end
 end
 
 local Library = {
@@ -289,10 +310,7 @@ function AppleCheats:CreateWindow(options)
 		main.Visible = state
 	end
 
-	Services.UserInputService.InputBegan:Connect(function(input, processed)
-		if processed then
-			return
-		end
+	Services.UserInputService.InputBegan:Connect(function(input)
 		if input.KeyCode == keybind then
 			SetVisible(not window.Visible)
 		end
@@ -607,32 +625,21 @@ function AppleCheats:CreateWindow(options)
 
 				SetValue(default, false)
 
-				local function UpdateFromInput(input)
-					local trackPos = track.AbsolutePosition.X
-					local trackSize = track.AbsoluteSize.X
-					local rel = math.clamp((input.Position.X - trackPos) / trackSize, 0, 1)
-					SetValue(min + (max - min) * rel, true)
-				end
-
-				local function BeginDrag(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						draggingSlider = true
-						UpdateFromInput(input)
-					end
-				end
-
-				BindClick(row, function()
+				local function UpdateFromInput()
 					local mouse = Services.UserInputService:GetMouseLocation()
 					local trackPos = track.AbsolutePosition.X
 					local trackSize = track.AbsoluteSize.X
-					if trackSize > 0 then
-						local rel = math.clamp((mouse.X - trackPos) / trackSize, 0, 1)
-						SetValue(min + (max - min) * rel, true)
+					if trackSize <= 0 then
+						return
 					end
-				end)
+					local rel = math.clamp((mouse.X - trackPos) / trackSize, 0, 1)
+					SetValue(min + (max - min) * rel, true)
+				end
 
-				handle.InputBegan:Connect(BeginDrag)
-				track.InputBegan:Connect(BeginDrag)
+				BindClick(row, function()
+					draggingSlider = true
+					UpdateFromInput()
+				end)
 
 				Services.UserInputService.InputEnded:Connect(function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -642,7 +649,7 @@ function AppleCheats:CreateWindow(options)
 
 				Services.UserInputService.InputChanged:Connect(function(input)
 					if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-						UpdateFromInput(input)
+						UpdateFromInput()
 					end
 				end)
 
@@ -679,7 +686,7 @@ function AppleCheats:CreateWindow(options)
 					Parent = list,
 				})
 
-				btn.MouseButton1Click:Connect(callback)
+				BindClick(btn, callback)
 				table.insert(column.Elements, btn)
 				return btn
 			end
