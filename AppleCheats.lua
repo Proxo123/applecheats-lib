@@ -1,5 +1,5 @@
 local AppleCheats = {}
-AppleCheats.Version = "1.1.0"
+AppleCheats.Version = "1.1.1"
 
 local Themes = {
 	TitleBg = Color3.fromRGB(0, 0, 0),
@@ -149,18 +149,6 @@ local function BindClick(gui, callback)
 		gui = gui,
 		callback = callback,
 	})
-	local function Fire()
-		callback()
-	end
-	if gui.MouseButton1Click then
-		gui.MouseButton1Click:Connect(Fire)
-	end
-	if gui.MouseButton1Down then
-		gui.MouseButton1Down:Connect(Fire)
-	end
-	if gui.Activated then
-		gui.Activated:Connect(Fire)
-	end
 end
 
 local Library = {
@@ -478,18 +466,28 @@ function AppleCheats:CreateWindow(options)
 				local element = {
 					Type = "Checkbox",
 					Value = default,
-					Set = function(_, value)
-						element.Value = value == true
-						fill.Visible = element.Value
-					end,
-					Get = function()
-						return element.Value
-					end,
 				}
 
+				function element:Set(value)
+					self.Value = value == true
+					fill.Visible = self.Value
+				end
+
+				function element:Get()
+					return self.Value
+				end
+
+				local toggleBusy = false
 				local function Toggle()
+					if toggleBusy then
+						return
+					end
+					toggleBusy = true
 					element:Set(not element.Value)
 					callback(element.Value)
+					task.defer(function()
+						toggleBusy = false
+					end)
 				end
 
 				BindClick(row, Toggle)
