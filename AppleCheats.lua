@@ -354,7 +354,7 @@ function AppleCheats:CreateWindow(options)
 		tab.Content = tabContent
 		tab.Select = Select
 
-		tabButton.MouseButton1Click:Connect(Select)
+		BindClick(tabButton, Select)
 
 		table.insert(window.Tabs, tab)
 
