@@ -1,5 +1,5 @@
 local AppleCheats = {}
-AppleCheats.Version = "1.0.0"
+AppleCheats.Version = "1.1.0"
 
 local Themes = {
 	TitleBg = Color3.fromRGB(0, 0, 0),
@@ -97,12 +97,66 @@ local function MakeText(props)
 	})
 end
 
+local ClickRegistry = {}
+local InputConnected = false
+
+local function PointInGui(gui, point)
+	if not gui or not gui.Parent then
+		return false
+	end
+	local visible = gui.Visible
+	if not visible then
+		return false
+	end
+	local pos = gui.AbsolutePosition
+	local size = gui.AbsoluteSize
+	if size.X < 1 or size.Y < 1 then
+		return false
+	end
+	return point.X >= pos.X and point.X <= pos.X + size.X and point.Y >= pos.Y and point.Y <= pos.Y + size.Y
+end
+
+local function EnsureInput()
+	if InputConnected then
+		return
+	end
+	InputConnected = true
+	Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		local point = input.Position
+		for i = #ClickRegistry, 1, -1 do
+			local entry = ClickRegistry[i]
+			if entry.gui and entry.gui.Parent then
+				if PointInGui(entry.gui, point) then
+					entry.callback()
+					return
+				end
+			else
+				table.remove(ClickRegistry, i)
+			end
+		end
+	end)
+end
+
 local function BindClick(gui, callback)
+	EnsureInput()
+	table.insert(ClickRegistry, {
+		gui = gui,
+		callback = callback,
+	})
 	local function Fire()
 		callback()
 	end
 	if gui.MouseButton1Click then
 		gui.MouseButton1Click:Connect(Fire)
+	end
+	if gui.MouseButton1Down then
+		gui.MouseButton1Down:Connect(Fire)
 	end
 	if gui.Activated then
 		gui.Activated:Connect(Fire)
@@ -375,7 +429,8 @@ function AppleCheats:CreateWindow(options)
 
 				local row = New("TextButton", {
 					Name = "Checkbox",
-					BackgroundTransparency = 0.999,
+					BackgroundColor3 = Themes.ContentBg,
+					BackgroundTransparency = 0.85,
 					BorderSizePixel = 0,
 					Text = "",
 					AutoButtonColor = false,
@@ -450,9 +505,12 @@ function AppleCheats:CreateWindow(options)
 				callback = callback or function() end
 				decimals = decimals or 2
 
-				local row = New("Frame", {
+				local row = New("TextButton", {
 					Name = "Slider",
 					BackgroundTransparency = 1,
+					Text = "",
+					AutoButtonColor = false,
+					Active = true,
 					Size = UDim2.new(1, 0, 0, 36),
 					LayoutOrder = #column.Elements + 1,
 					Parent = list,
@@ -540,27 +598,34 @@ function AppleCheats:CreateWindow(options)
 					SetValue(min + (max - min) * rel, true)
 				end
 
-				handle.InputBegan:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 then
-						draggingSlider = true
-					end
-				end)
-
-				track.InputBegan:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				local function BeginDrag(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						draggingSlider = true
 						UpdateFromInput(input)
 					end
+				end
+
+				BindClick(row, function()
+					local mouse = Services.UserInputService:GetMouseLocation()
+					local trackPos = track.AbsolutePosition.X
+					local trackSize = track.AbsoluteSize.X
+					if trackSize > 0 then
+						local rel = math.clamp((mouse.X - trackPos) / trackSize, 0, 1)
+						SetValue(min + (max - min) * rel, true)
+					end
 				end)
 
+				handle.InputBegan:Connect(BeginDrag)
+				track.InputBegan:Connect(BeginDrag)
+
 				Services.UserInputService.InputEnded:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						draggingSlider = false
 					end
 				end)
 
 				Services.UserInputService.InputChanged:Connect(function(input)
-					if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+					if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 						UpdateFromInput(input)
 					end
 				end)
