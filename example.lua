@@ -3,7 +3,7 @@ local AppleCheats = loadstring(game:HttpGet("https://raw.githubusercontent.com/P
 local Window = AppleCheats:CreateWindow({
 	Title = "APPLE FORTNITE",
 	Subtitle = "menu is only usable in game",
-	Keybind = Enum.KeyCode.Insert,
+	Keybind = Enum.KeyCode.RightShift,
 })
 
 local Aimbot = Window:AddTab("Aimbot")

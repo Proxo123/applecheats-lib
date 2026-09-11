@@ -1,5 +1,5 @@
 local AppleCheats = {}
-AppleCheats.Version = "1.1.1"
+AppleCheats.Version = "1.1.2"
 
 local Themes = {
 	TitleBg = Color3.fromRGB(0, 0, 0),
@@ -23,24 +23,42 @@ local Services = {
 	HttpService = game:GetService("HttpService"),
 }
 
-local function GetGuiParent()
-	local parent = gethui and gethui() or Services.CoreGui
-	for _, child in ipairs(parent:GetChildren()) do
-		if child:IsA("ScreenGui") and child.Name == "AppleCheats" then
-			child:Destroy()
-		end
-	end
+local function ResolveGuiParent()
+	return gethui and gethui() or Services.CoreGui
+end
+
+local function NewScreenGui(name)
 	local gui = Instance.new("ScreenGui")
-	gui.Name = "AppleCheats"
+	gui.Name = name
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
 	gui.DisplayOrder = 999
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Enabled = true
 	if syn and syn.protect_gui then
 		syn.protect_gui(gui)
 	end
-	gui.Parent = parent
+	gui.Parent = ResolveGuiParent()
 	return gui
+end
+
+local function CreateWindowGui()
+	local parent = ResolveGuiParent()
+	for _, child in ipairs(parent:GetChildren()) do
+		if child:IsA("ScreenGui") and (child.Name == "AppleCheats" or child.Name == "AppleCheatsNotify") then
+			child:Destroy()
+		end
+	end
+	return NewScreenGui("AppleCheats")
+end
+
+local function GetWindowGui()
+	local parent = ResolveGuiParent()
+	local gui = parent:FindFirstChild("AppleCheats")
+	if gui and gui:IsA("ScreenGui") then
+		return gui
+	end
+	return nil
 end
 
 local function FormatTimestamp()
@@ -166,11 +184,11 @@ function AppleCheats:CreateWindow(options)
 	options = options or {}
 	local title = options.Title or "APPLE CHEATS"
 	local subtitle = options.Subtitle or "menu is only usable in game"
-	local keybind = options.Keybind or Enum.KeyCode.Insert
+	local keybind = options.Keybind or Enum.KeyCode.RightShift
 	local size = options.Size or Vector2.new(620, 420)
 	local position = options.Position or UDim2.new(0.5, -size.X / 2, 0.5, -size.Y / 2)
 
-	local gui = GetGuiParent()
+	local gui = CreateWindowGui()
 	local window = {
 		Gui = gui,
 		Keybind = keybind,
@@ -689,7 +707,12 @@ end
 
 function AppleCheats:Notify(text, duration)
 	duration = duration or 3
-	local gui = GetGuiParent()
+	local parent = ResolveGuiParent()
+	local gui = parent:FindFirstChild("AppleCheatsNotify")
+	if not gui then
+		gui = NewScreenGui("AppleCheatsNotify")
+		gui.DisplayOrder = 1000
+	end
 	local frame = New("Frame", {
 		Name = "Notification",
 		BackgroundColor3 = Themes.TitleBg,
